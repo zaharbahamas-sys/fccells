@@ -1,0 +1,276 @@
+import streamlit as st
+import pandas as pd
+import graphviz
+from datetime import datetime
+from fpdf import FPDF
+import google.generativeai as genai
+
+# ==========================================
+# 1. SETUP & SECURITY
+# ==========================================
+st.set_page_config(
+    page_title="EcoPower Enterprise AI",
+    layout="wide",
+    page_icon="⚡",
+    initial_sidebar_state="expanded"
+)
+
+# نظام تسجيل الدخول
+def check_password():
+    def password_entered():
+        if st.session_state["password"] == "admin": # كلمة المرور
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.markdown("### 🔒 System Login")
+        st.text_input("Access Code:", type="password", on_change=password_entered, key="password")
+        st.info("Demo Password: admin")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.text_input("Access Code:", type="password", on_change=password_entered, key="password")
+        st.error("⛔ Access Denied")
+        return False
+    else:
+        return True
+
+if not check_password():
+    st.stop()
+
+# ==========================================
+# 2. DATA CLASSES
+# ==========================================
+class FuelCell:
+    def __init__(self, name, technology, efficiency, min_p, max_p, fuel_type, lhv, parasitic_loss):
+        self.name = name
+        self.technology = technology
+        self.efficiency = efficiency
+        self.min_power = min_p
+        self.max_power = max_p
+        self.fuel_type = fuel_type
+        self.lhv = lhv
+        self.parasitic_loss = parasitic_loss
+
+inventory = [
+    FuelCell("Ballard FCgen-H2PM", "PEMFC", 0.50, 1.0, 10.0, "Hydrogen", 33.3, 0.08),
+    FuelCell("Plug Power GenSure", "PEMFC", 0.52, 0.5, 15.0, "Hydrogen", 33.3, 0.09),
+    FuelCell("Bloom Energy Server", "SOFC", 0.60, 50.0, 300.0, "Nat Gas", 13.9, 0.12),
+    FuelCell("SFC EFOY Pro", "DMFC", 0.38, 0.05, 0.5, "Methanol", 5.5, 0.05),
+]
+
+# ==========================================
+# 3. PDF GENERATOR
+# ==========================================
+def create_pdf(site, dg, fc, fin, ai_recommendation=""):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, 'EcoPower Enterprise | Engineering Report', 0, 1, 'C')
+    pdf.line(10, 20, 200, 20)
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", size=10)
+    pdf.cell(0, 6, f"Date: {datetime.now().strftime('%Y-%m-%d')}", 0, 1)
+    
+    # Section 1: Site
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "1. Site Analysis", 0, 1)
+    pdf.set_font("Arial", size=10)
+    pdf.cell(0, 6, f"Load: {site['load']} kW | Temp: {site['temp']} C | Derating: {site['derating']}%", 0, 1)
+
+    # Section 2: Asset Health
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "2. Existing Asset Health", 0, 1)
+    pdf.set_font("Arial", size=10)
+    pdf.cell(0, 6, f"Generator: {dg['kva']} kVA | Load Factor: {dg['load_factor']}%", 0, 1)
+    if dg['load_factor'] < 30:
+        pdf.set_text_color(200, 0, 0)
+        pdf.cell(0, 6, "STATUS: CRITICAL (Wet Stacking Risk) - Relocation Recommended", 0, 1)
+    else:
+        pdf.set_text_color(0, 100, 0)
+        pdf.cell(0, 6, "STATUS: HEALTHY", 0, 1)
+    pdf.set_text_color(0, 0, 0)
+
+    # Section 3: Financials
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "3. Financial Summary (Daily)", 0, 1)
+    pdf.set_font("Arial", size=10)
+    pdf.cell(0, 6, f"Diesel Cost (with theft/loss): ${dg['cost']}", 0, 1)
+    pdf.cell(0, 6, f"Fuel Cell Cost: ${fc['cost']}", 0, 1)
+    
+    saving = dg['cost'] - fc['cost']
+    if saving > 0:
+        pdf.set_text_color(0, 100, 0)
+        pdf.cell(0, 6, f"NET SAVINGS: ${round(saving, 2)} / DAY", 0, 1)
+    
+    # Section 4: AI Note
+    if ai_recommendation:
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 10, "4. AI Consultant Summary", 0, 1)
+        pdf.set_font("Arial", 'I', 9)
+        pdf.multi_cell(0, 5, "Refer to the full AI analysis in the dashboard for detailed action plan.")
+
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
+
+# ==========================================
+# 4. INPUTS (SIDEBAR)
+# ==========================================
+st.sidebar.title("⚙️ Control Panel")
+
+# Site Data
+st.sidebar.header("1. Site Parameters")
+lat = st.sidebar.number_input("Lat", 15.50)
+lon = st.sidebar.number_input("Lon", 32.55)
+temp = st.sidebar.slider("Max Temp (°C)", 20, 55, 42)
+derating_factor = 1.0 - ((temp - 35) * 0.015) if temp > 35 else 1.0
+
+# Assets
+st.sidebar.header("2. Assets & Load")
+site_load_kw = st.sidebar.number_input("Load (kW)", 1.0, 50.0, 4.0)
+dg_kva = st.sidebar.number_input("Existing DG (kVA)", 5.0, 100.0, 20.0)
+
+# Market
+st.sidebar.header("3. Market & Loss")
+diesel_price = st.sidebar.number_input("Diesel ($/L)", 0.5, 3.0, 1.2)
+h2_price = st.sidebar.number_input("Hydrogen ($/kg)", 5.0, 30.0, 15.0)
+theft_factor = st.sidebar.slider("Theft/Loss %", 0, 30, 10)
+
+# ==========================================
+# 5. CORE LOGIC ENGINE
+# ==========================================
+# DG Calculations
+dg_kw_rated = dg_kva * 0.8
+load_factor = (site_load_kw / dg_kw_rated) * 100
+fuel_engine = (0.07 * dg_kw_rated) + (0.24 * site_load_kw)
+fuel_billed = fuel_engine * (1 + theft_factor/100)
+daily_dg_cost = fuel_billed * 24 * diesel_price
+
+# FC Calculations
+required_gross_power = site_load_kw / derating_factor
+valid_cells = [c for c in inventory if c.min_power <= required_gross_power <= c.max_power]
+selected_fc = sorted(valid_cells, key=lambda x: x.efficiency, reverse=True)[0] if valid_cells else None
+
+if selected_fc:
+    h2_hourly = required_gross_power / selected_fc.efficiency / selected_fc.lhv
+    daily_fc_cost = h2_hourly * 24 * h2_price
+else:
+    h2_hourly = 0
+    daily_fc_cost = 0
+
+# ==========================================
+# 6. UI & TABS
+# ==========================================
+st.title("⚡ EcoPower Enterprise System")
+st.markdown("**AI-Powered Power Asset Optimization Tool**")
+
+tabs = st.tabs(["📊 Dashboard", "🤖 AI Consultant", "🔄 Asset Optimizer", "⚖️ Techno-Economic", "📄 Reports"])
+
+# --- TAB 1: Dashboard ---
+with tabs[0]:
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        st.subheader("📍 Site Overview")
+        st.map(pd.DataFrame({'lat': [lat], 'lon': [lon]}), zoom=10)
+    with c2:
+        st.metric("Site Load", f"{site_load_kw} kW")
+        st.metric("Temp Derating Loss", f"{int((1-derating_factor)*100)}%", delta_color="inverse")
+        if selected_fc:
+            st.success(f"Recommended: {selected_fc.name}")
+        else:
+            st.error("No suitable FC found.")
+
+# --- TAB 2: AI CONSULTANT (GEMINI) ---
+with tabs[1]:
+    st.header("🤖 المستشار الهندسي الذكي (Gemini AI)")
+    st.info("يقوم هذا النظام بتحليل الأرقام وكتابة التوصيات الإدارية تلقائياً.")
+    
+    api_key = st.text_input("Google Gemini API Key:", type="password")
+    
+    # تحضير سياق البيانات
+    context_data = f"""
+    Context: Telecom Site Power Analysis.
+    - Site Load: {site_load_kw} kW. Temp: {temp}C.
+    - Existing Generator: {dg_kva} kVA.
+    - Current Load Factor: {int(load_factor)}%.
+    - Diesel Cost (Daily): ${round(daily_dg_cost, 2)} (Includes {theft_factor}% theft/loss).
+    - Proposed Fuel Cell: {selected_fc.name if selected_fc else 'None'}.
+    - Fuel Cell Cost (Daily): ${round(daily_fc_cost, 2)}.
+    """
+
+    c_ai1, c_ai2 = st.columns([1, 2])
+    with c_ai1:
+        action = st.radio("اختر المهمة:", ["تحليل هندسي للمولد", "كتابة إيميل للمدير", "خطة تنفيذية"])
+        run_ai = st.button("🚀 ابدأ التحليل")
+    
+    with c_ai2:
+        if run_ai and api_key:
+            try:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel('gemini-pro')
+                
+                if "إيميل" in action:
+                    prompt = f"Act as a Project Manager. Write a persuasive email to the CTO proposing to replace the diesel generator at this site based on this data: {context_data}. Focus on the financial saving and theft prevention. Write in Arabic."
+                elif "تحليل" in action:
+                    prompt = f"Act as a Senior Engineer. Analyze the current generator health based on Load Factor {int(load_factor)}%. Explain 'Wet Stacking' risks if applicable. Compare with the Fuel Cell solution. Data: {context_data}. Write in Arabic."
+                else:
+                    prompt = f"Create a numbered Action Plan to modernize this site. Data: {context_data}. Write in Arabic."
+
+                with st.spinner("Analyzing..."):
+                    resp = model.generate_content(prompt)
+                    st.markdown(resp.text)
+            except Exception as e:
+                st.error(f"Error: {e}")
+        elif run_ai:
+            st.warning("Please enter API Key.")
+
+# --- TAB 3: Asset Optimizer ---
+with tabs[2]:
+    st.header("🔄 Existing Asset Health")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Current Load Factor", f"{int(load_factor)}%")
+        if load_factor < 30:
+            st.error("🛑 CRITICAL: Wet Stacking Risk")
+            st.write(f"Recommendation: **Relocate** this {dg_kva}kVA unit immediately.")
+            
+            # Money Burn
+            burn = (dg_kw_rated - (site_load_kw*1.5)) * 0.05 * 24 * 365 * diesel_price
+            if burn > 0:
+                st.metric("Yearly Wasted Fuel (Idle)", f"${int(burn):,}", delta_color="inverse")
+        else:
+            st.success("✅ Generator Sizing is OK")
+
+# --- TAB 4: Techno-Economic ---
+with tabs[3]:
+    st.header("💰 Comparison")
+    c1, c2 = st.columns(2)
+    c1.metric("Diesel Daily OPEX", f"${round(daily_dg_cost, 2)}")
+    c2.metric("Fuel Cell Daily OPEX", f"${round(daily_fc_cost, 2)}")
+    
+    df = pd.DataFrame({
+        "Diesel": [daily_dg_cost * d for d in range(365)],
+        "Fuel Cell": [daily_fc_cost * d for d in range(365)]
+    })
+    st.line_chart(df)
+
+# --- TAB 5: Reports ---
+with tabs[4]:
+    st.header("📄 Export")
+    if selected_fc:
+        site_d = {'load': site_load_kw, 'temp': temp, 'derating': int((1-derating_factor)*100)}
+        dg_d = {'kva': dg_kva, 'load_factor': int(load_factor), 'cost': round(daily_dg_cost, 2)}
+        fc_d = {'cost': round(daily_fc_cost, 2)}
+        fin_d = {}
+        
+        pdf_bytes = create_pdf(site_d, dg_d, fc_d, fin_d)
+        st.download_button("📕 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
+        
+        csv = pd.DataFrame([site_d | dg_d | fc_d]).to_csv().encode('utf-8')
+        st.download_button("📊 Download Excel", csv, "Data.csv", "text/csv")

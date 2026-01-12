@@ -1,0 +1,42 @@
+Master Agent Implementation: Cinematic Living Background & Login UI
+1. Core Asset & Scene Setup:
+
+Base Layer (Static): Use the provided high-resolution image (Nile, Pyramids, Jebel Barkal, Towers, Login Box) as the main background for the landing page body. Ensure the central Login Card remains opaque and fully functional.
+
+2. Dynamic Animation Layers (The Living Scene):
+
+Layer A: The Flowing Nile (Realistic Water FX)
+
+Technique: Implement a WebGL or CSS Canvas ripple effect specifically on the water area of the image.
+
+Motion: Create a continuous, smooth, lateral flow animation (flow speed: slow).
+
+Detail: Add dynamic reflections. The sun's light path on the water should shimmer with the ripples, creating a "liquid light" effect that feels wet and alive.
+
+Layer B: The Dynamic Sun (Atmospheric Glow)
+
+Technique: Add a soft, pulsing CSS radial gradient glow around the sun disc.
+
+Motion: The sun itself should have a very subtle, slow upward drift (as if rising further).
+
+Atmosphere: The golden-orange light cast on the pyramids and landscape should gently pulse in sync with the sun, making the entire scene "breathe" with light.
+
+Layer C: Drifting Clouds (Parallax Sky)
+
+Technique: Overlay a transparent layer of high-quality cloud wisps (.png assets) in the sky area.
+
+Motion: Animate them moving slowly and smoothly across the horizon (e.g., from right to left). Use a parallax effect so distant clouds move slower than closer ones, adding depth.
+
+Layer D: Growing Greenery (The Eco-Effect)
+
+Technique: Create multiple overlay masks for the green areas (bushes, palm trees) on the riverbanks.
+
+Motion: Implement a slow, continuous fade-in and scale-up animation on these masks. The vegetation should appear to be gradually becoming denser, greener, and more lush over a period of 30-60 seconds, symbolizing growth and life.
+
+3. User Interaction (Subtle Response):
+
+Mouse Movement: Add a very subtle parallax shift to the entire scene (Pyramids, Barkal, Towers) based on cursor movement, giving a sense of 3D depth behind the Login Card.
+
+4. Final Polish:
+
+Ensure all animations are smooth, optimized for performance, and run in a continuous, non-distracting loop behind the login form, creating a premium, cinematic "Living Picture" feel.

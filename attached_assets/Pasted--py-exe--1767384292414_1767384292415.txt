@@ -1,0 +1,238 @@
+للأسف بصفتي نموذج ذكاء اصطناعي نصي، لا يمكنني إرسال ملفات (مثل `.py` أو `.exe`) بشكل مباشر عبر الدردشة للتحميل.
+
+ولكن، **الحل بسيط جداً**. لقد قمت بدمج **النسخة الهندسية الكاملة (Real-World Engineering Edition)** التي تحتوي على (حسابات الفاقد، مقارنة المولد والسرقات، وتصدير التقرير) في ككتلة برمجية واحدة أدناه.
+
+**طريقة الاستخدام:**
+
+1. قم بإنشاء ملف نصي جديد على جهازك وسمّه `main.py`.
+2. انسخ الكود أدناه بالكامل والصقه داخل الملف.
+3. شغله باستخدام الأمر: `streamlit run main.py`.
+
+إليك الكود الكامل (النسخة النهائية):
+
+```python
+import streamlit as st
+import pandas as pd
+import graphviz
+from datetime import datetime
+
+# --- 1. إعدادات الصفحة ---
+st.set_page_config(page_title="EcoPower Pro: DG vs FC", layout="wide", page_icon="⚙️")
+
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.title("⚙️ EcoPower Engineering Tool")
+    st.markdown("**Techno-Economic Analysis: Diesel Gen vs. Fuel Cell**")
+with col_h2:
+    st.write(f"📅 Date: {datetime.now().strftime('%Y-%m-%d')}")
+    st.info("Mode: Real-World Engineering")
+
+st.markdown("---")
+
+# --- 2. تعريف الكلاسات (القيم الحقيقية) ---
+class FuelCell:
+    def __init__(self, name, technology, efficiency, min_p, max_p, fuel_type, lhv, parasitic_loss, source):
+        self.name = name
+        self.technology = technology
+        self.efficiency = efficiency      # Electrical Efficiency
+        self.min_power = min_p
+        self.max_power = max_p
+        self.fuel_type = fuel_type
+        self.lhv = lhv                    # kWh/kg
+        self.parasitic_loss = parasitic_loss # Internal consumption (Fans/Pumps)
+        self.source = source
+
+# قاعدة البيانات (Ballard, Plug, etc.)
+inventory = [
+    FuelCell("Ballard FCgen-H2PM", "PEMFC", 0.50, 1.0, 5.0, "Hydrogen", 33.3, 0.08, "Ballard Datasheet"), 
+    FuelCell("Bloom Energy Server", "SOFC", 0.60, 50.0, 200.0, "Nat Gas", 13.9, 0.12, "Bloom Energy"),
+    FuelCell("SFC EFOY Pro", "DMFC", 0.35, 0.05, 0.5, "Methanol", 5.5, 0.05, "SFC Energy"),
+]
+
+# --- 3. المدخلات (Sidebar) ---
+st.sidebar.header("1. Site Constraints")
+lat = st.sidebar.number_input("Latitude", 15.50, format="%.2f")
+lon = st.sidebar.number_input("Longitude", 32.50, format="%.2f")
+temp = st.sidebar.number_input("Max Site Temp (°C)", value=42, help="يؤثر على كفاءة الخلية")
+altitude = st.sidebar.number_input("Altitude (m)", value=400)
+
+st.sidebar.header("2. Load Profile")
+load_kw_site = st.sidebar.number_input("Critical IT Load (kW)", value=4.0)
+
+# حساب مفاقيد الحرارة (Derating)
+derating_factor = 1.0
+if temp > 35:
+    derating_factor -= (temp - 35) * 0.015
+    
+# الحمل الإجمالي المطلوب توليده (شامل تعويض الحرارة)
+required_gross_power = load_kw_site / derating_factor
+
+st.sidebar.header("3. Existing DG Info")
+dg_capacity_kva = st.sidebar.number_input("Generator Capacity (kVA)", value=20.0)
+dg_fuel_price = st.sidebar.number_input("Diesel Price ($/Liter)", value=1.2)
+pilferage_factor = st.sidebar.slider("Theft/Loss Factor %", 0, 30, 10, help="نسبة سرقة الوقود أو الفاقد اللوجستي")
+
+st.sidebar.header("4. Fuel Cell Inputs")
+h2_price = st.sidebar.number_input("Hydrogen Price ($/kg)", value=15.0)
+
+# --- 4. اختيار الخلية الأنسب ---
+selected_fc = None
+valid_cells = [c for c in inventory if c.min_power <= required_gross_power <= c.max_power]
+if valid_cells:
+    selected_fc = sorted(valid_cells, key=lambda x: x.efficiency, reverse=True)[0]
+
+# --- 5. التبويبات الرئيسية ---
+tabs = st.tabs(["⚖️ DG vs FC Comparison", "📐 Engineering Sizing", "🔋 Hybrid Battery", "📦 Logistics", "📄 Report"])
+
+# === TAB 1: المقارنة المالية والتشغيلية ===
+with tabs[0]:
+    st.header("Comparative Analysis (Real-World Scenario)")
+    
+    col_c1, col_c2 = st.columns(2)
+    
+    # حسابات المولد (الواقع المؤلم)
+    dg_capacity_kw = dg_capacity_kva * 0.8
+    load_factor = (load_kw_site / dg_capacity_kw) * 100
+    
+    # معادلة استهلاك الديزل غير الخطية (Non-linear consumption)
+    # Fuel = 0.07*Rated + 0.24*Load
+    fuel_hourly_engine = (0.07 * dg_capacity_kw) + (0.24 * load_kw_site)
+    fuel_hourly_billed = fuel_hourly_engine * (1 + pilferage_factor/100) # إضافة السرقة
+    
+    with col_c1:
+        st.subheader("🔴 Existing Diesel Generator")
+        st.metric("Load Factor", f"{int(load_factor)}%", delta="Low Efficiency Risk" if load_factor < 30 else "OK", delta_color="inverse")
+        st.write(f"Engine Consumption: **{round(fuel_hourly_engine, 2)} L/hr**")
+        st.write(f"Theft/Loss Overhead: **+{round(fuel_hourly_billed - fuel_hourly_engine, 2)} L/hr**")
+        
+        daily_cost_dg = fuel_hourly_billed * 24 * dg_fuel_price
+        st.error(f"Daily OPEX: ${round(daily_cost_dg, 2)}")
+
+    # حسابات الخلية (الحل المقترح)
+    with col_c2:
+        st.subheader("🟢 Proposed Fuel Cell")
+        if selected_fc:
+            # استهلاك الهيدروجين = القدرة الكلية / الكفاءة / القيمة الحرارية
+            h2_hourly = required_gross_power / selected_fc.efficiency / selected_fc.lhv
+            daily_cost_fc = h2_hourly * 24 * h2_price
+            
+            st.metric("System Efficiency", f"{int(selected_fc.efficiency*100)}%")
+            st.write(f"Fuel Consumption: **{round(h2_hourly, 2)} kg/hr**")
+            st.write("Theft Risk: **0% (Cannot be siphoned)**")
+            
+            st.success(f"Daily OPEX: ${round(daily_cost_fc, 2)}")
+            
+            saving = daily_cost_dg - daily_cost_fc
+            if saving > 0:
+                st.metric("Net Daily Savings", f"${round(saving, 2)}", "Positive ROI")
+            else:
+                st.metric("Additional Cost", f"${abs(round(saving, 2))}", "Premium for Green Energy", delta_color="inverse")
+
+    st.markdown("---")
+    st.subheader("📉 Cumulative Cost (1 Year)")
+    
+    # رسم بياني للتكلفة التراكمية
+    days = range(1, 366)
+    cost_dg = [d * daily_cost_dg for d in days]
+    cost_fc = [d * daily_cost_fc for d in days]
+    
+    df_chart = pd.DataFrame({"Diesel Gen (Current)": cost_dg, "Fuel Cell (Proposed)": cost_fc})
+    st.line_chart(df_chart)
+
+# === TAB 2: التصميم الهندسي ===
+with tabs[1]:
+    st.header("Sizing & Losses Analysis")
+    if selected_fc:
+        # حساب الفقد الداخلي
+        parasitic_load = required_gross_power * selected_fc.parasitic_loss
+        net_output = required_gross_power - parasitic_load
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Gross Power Generated", f"{round(required_gross_power, 2)} kW")
+        c2.metric("Parasitic Loss (Fans)", f"{round(parasitic_load, 2)} kW", f"-{int(selected_fc.parasitic_loss*100)}%")
+        c3.metric("Temp Derating Loss", f"{int((1-derating_factor)*100)}%", f"at {temp}°C", delta_color="inverse")
+        
+        st.graphviz_chart(f"""
+        digraph G {{
+            rankdir=LR;
+            node [shape=box style=filled];
+            Stack [label="FC Stack\\n{round(required_gross_power, 2)} kW" color=lightblue];
+            Aux [label="Auxiliaries\\n{round(parasitic_load, 2)} kW" color="#ffcccb"];
+            Load [label="Site Load\\n{load_kw_site} kW" color=lightgreen];
+            
+            Stack -> Aux [style=dashed label="Loss"];
+            Stack -> Load [label="Net Power"];
+        }}
+        """)
+
+# === TAB 3: البطاريات ===
+with tabs[2]:
+    st.header("Hybrid Battery Buffer Calculation")
+    st.write("Required to cover startup time and peak loads.")
+    
+    batt_hours = st.slider("Buffer Time (Hours)", 1, 8, 4)
+    sys_voltage = 48
+    dod = 0.8
+    
+    required_ah = (load_kw_site * 1000 * batt_hours) / (sys_voltage * dod)
+    
+    st.info(f"🔋 Minimum Battery Capacity: **{int(required_ah)} Ah** @ 48V")
+    st.write(f"Configuration Recommendation: {int(required_ah/150)+1} Strings of 150Ah blocks.")
+
+# === TAB 4: اللوجستيات ===
+with tabs[3]:
+    st.header("Logistics Planning")
+    if selected_fc and selected_fc.fuel_type == "Hydrogen":
+        days_autonomy = st.number_input("Refueling Cycle (Days)", 1, 30, 7)
+        total_h2 = (required_gross_power / selected_fc.efficiency / selected_fc.lhv) * 24 * days_autonomy
+        
+        cylinders = int(total_h2 / 0.89) + 1
+        racks = int(cylinders / 12) + 1
+        
+        st.warning(f"📦 For {days_autonomy} days autonomy:")
+        st.metric("Cylinders (50L @ 200bar)", f"{cylinders} Units")
+        st.metric("Bundles (12-Pack)", f"{racks} Bundles")
+
+# === TAB 5: التقرير ===
+with tabs[4]:
+    st.header("📄 Export Engineering Report")
+    
+    if selected_fc:
+        report_text = f"""
+        ========================================
+        ENGINEERING STUDY REPORT: DG vs FC
+        ========================================
+        Date: {datetime.now().strftime('%Y-%m-%d')}
+        Location: Lat {lat}, Lon {lon}
+        
+        1. SITE ANALYSIS
+        ----------------
+        Load: {load_kw_site} kW
+        Max Temp: {temp} C (Derating applied: {int((1-derating_factor)*100)}%)
+        
+        2. EXISTING SITUATION (DIESEL)
+        ------------------------------
+        Generator: {dg_capacity_kva} kVA
+        Load Factor: {int(load_factor)}% (Inefficient Range)
+        Fuel Consumption (Real + Theft): {round(fuel_hourly_billed, 2)} L/hr
+        Daily OPEX: ${round(daily_cost_dg, 2)}
+        
+        3. PROPOSED SOLUTION (FUEL CELL)
+        --------------------------------
+        Model: {selected_fc.name}
+        Gross Power: {round(required_gross_power, 2)} kW
+        Parasitic Loss: {int(selected_fc.parasitic_loss*100)}%
+        Daily OPEX: ${round(daily_cost_fc, 2)}
+        
+        4. FINANCIAL VERDICT
+        --------------------
+        Daily Savings: ${round(daily_cost_dg - daily_cost_fc, 2)}
+        Theft Risk Eliminated: Yes
+        
+        ========================================
+        Generated by EcoPower Engineering Tool
+        """
+        
+        st.download_button("📥 Download Report (.txt)", report_text, file_name="Engineering_Report.txt")
+
+```

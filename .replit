@@ -1,0 +1,54 @@
+modules = ["nodejs-20", "python-3.11", "postgresql-16"]
+[nix]
+channel = "stable-25_05"
+packages = ["freefont_ttf", "glibcLocales", "graphviz", "unzip", "xdg-utils", "gotree"]
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3001
+
+[deployment]
+deploymentTarget = "vm"
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
+
+[objectStorage]
+defaultBucketID = "replit-objstore-42c48e64-56b4-4671-acb9-30bfc16fe23d"
+
+[userenv]
+
+[userenv.shared]
+GOOGLE_CLIENT_ID = "10466040638-iukqbqmo47f7h9klpmi5b54hnpning6d.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+SESSION_SECRET = "my-super-secret-key-for-session-encryption-12345"
